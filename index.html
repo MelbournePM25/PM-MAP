@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Google Maps Integration</title>
+    <title>Unified Map of Current & Future Properties</title>
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
         #map { width: 100%; height: 100vh; }
@@ -23,18 +23,23 @@
         <select id="directorFilter">
             <option value="all">Show All</option>
         </select>
-
-        <label for="pmFilter">Filter by Property Manager:</label>
-        <select id="pmFilter">
+        <br>
+        <label for="managerFilter">Filter by Property Manager:</label>
+        <select id="managerFilter">
             <option value="all">Show All</option>
         </select>
+        <br>
+        <label>
+            <input type="checkbox" id="futureToggle" checked>
+            Show Future Properties
+        </label>
     </div>
-    
+
     <div id="map"></div>
 
     <script>
-        let markers = [];
         let map;
+        let allMarkers = [];
 
         function initMap() {
             map = new google.maps.Map(document.getElementById('map'), {
@@ -42,58 +47,62 @@
                 center: { lat: 43.72023, lng: -79.47168 }
             });
 
-            fetch('https://script.google.com/macros/s/AKfycby04eidti8v5KG25hYlQaAkS_G0Fvz0uIqaHLRf64kEYVfM3V_wng4MRbjEOtdyzDgg/exec')
-                .then(response => response.json())
-                .then(data => {
-                    console.log("Fetched Data:", data);
-                    const directorsSet = new Set();
-                    const pmSet = new Set();
+            // Fetch the data from Google Sheets script
+            const DATA_URL = 'https://script.google.com/macros/s/AKfycbzGpMK2N83HAuXAB8c4qHNpPF5jh_sCFM8iJnUGqbWOUmwmwx7xAbwvs5qzA2KqBppx/exec';
 
-                    data.forEach(property => {
-                        let latLngString = property["Latitude/Longitude"] || "";
-                        let directorName = property["DIRECTOR"] || "Unknown";
-                        let propertyManager = property["Property Manager"] || "Unknown";
+            fetch(DATA_URL)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Fetched Properties:', data);
 
-                        directorsSet.add(directorName);
-                        pmSet.add(propertyManager);
+                const directorsSet = new Set();
+                const managersSet = new Set();
 
-                        if (latLngString.includes(',')) {
-                            const latLng = latLngString.split(',').map(coord => parseFloat(coord.trim()));
-                            if (!isNaN(latLng[0]) && !isNaN(latLng[1])) {
-                                const marker = new google.maps.Marker({
-                                    position: { lat: latLng[0], lng: latLng[1] },
-                                    map: map,
-                                    title: property["Community"],
-                                    icon: getDirectorColor(directorName)
-                                });
+                data.forEach(item => {
+                    let latLngString = item["Latitude/Longitude"] || "";
+                    let isFuture = item["FUTURE"] && item["FUTURE"].trim().toLowerCase() === "yes";
+                    let directorName = item["DIRECTOR"] ? item["DIRECTOR"].trim() : "Unknown";
+                    let propertyManager = item["Property Manager"] ? item["Property Manager"].trim() : "Unknown";
+                    
+                    directorsSet.add(directorName);
+                    managersSet.add(propertyManager);
 
-                                const infoWindow = new google.maps.InfoWindow({
-                                    content: `<div>
-                                                <h3>${property["Community"]}</h3>
-                                                <p><strong>Property Manager:</strong> ${propertyManager}</p>
-                                                <p><strong>Phone:</strong> ${property["PM: P#"]}</p>
-                                                <p><strong>Director:</strong> ${directorName}</p>
-                                              </div>`
-                                });
+                    if (latLngString.includes(',')) {
+                        const latLng = latLngString.split(',').map(coord => parseFloat(coord.trim()));
+                        if (!isNaN(latLng[0]) && !isNaN(latLng[1])) {
+                            const marker = new google.maps.Marker({
+                                position: { lat: latLng[0], lng: latLng[1] },
+                                map: map,
+                                title: item["Community"] || "Unknown Property",
+                                icon: isFuture ? 'http://maps.google.com/mapfiles/ms/icons/ltblue-dot.png' : getDirectorColor(directorName)
+                            });
 
-                                marker.addListener('click', () => {
-                                    infoWindow.open(map, marker);
-                                });
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: `<div>
+                                            <h3>${item["Community"] || "Unknown Property"}</h3>
+                                            <p><strong>Property Manager:</strong> ${propertyManager}</p>
+                                            <p><strong>Phone:</strong> ${item["PM: P#"] || "N/A"}</p>
+                                            <p><strong>Director:</strong> ${directorName}</p>
+                                          </div>`
+                            });
 
-                                markers.push({ marker, director: directorName, propertyManager });
-                            }
+                            marker.addListener('click', () => {
+                                infoWindow.open(map, marker);
+                            });
+
+                            allMarkers.push({ marker, director: directorName, manager: propertyManager, isFuture });
                         }
-                    });
+                    }
+                });
 
-                    populateFilter(directorsSet, pmSet);
-                })
-                .catch(error => console.error('Error loading properties:', error));
+                populateFilters(directorsSet, managersSet);
+                applyFilters(); // Ensure the correct properties are displayed
+            })
+            .catch(error => console.error('Error loading properties:', error));
         }
 
-        function populateFilter(directorsSet, pmSet) {
+        function populateFilters(directorsSet, managersSet) {
             const directorFilter = document.getElementById("directorFilter");
-            const pmFilter = document.getElementById("pmFilter");
-
             directorsSet.forEach(director => {
                 const option = document.createElement("option");
                 option.value = director;
@@ -101,30 +110,30 @@
                 directorFilter.appendChild(option);
             });
 
-            pmSet.forEach(pm => {
+            const managerFilter = document.getElementById("managerFilter");
+            managersSet.forEach(manager => {
                 const option = document.createElement("option");
-                option.value = pm;
-                option.textContent = pm;
-                pmFilter.appendChild(option);
+                option.value = manager;
+                option.textContent = manager;
+                managerFilter.appendChild(option);
             });
 
             directorFilter.addEventListener("change", applyFilters);
-            pmFilter.addEventListener("change", applyFilters);
+            managerFilter.addEventListener("change", applyFilters);
+            document.getElementById("futureToggle").addEventListener("change", applyFilters);
         }
 
         function applyFilters() {
             const selectedDirector = document.getElementById("directorFilter").value;
-            const selectedPM = document.getElementById("pmFilter").value;
+            const selectedManager = document.getElementById("managerFilter").value;
+            const showFuture = document.getElementById("futureToggle").checked;
 
-            markers.forEach(({ marker, director, propertyManager }) => {
-                if (
-                    (selectedDirector === "all" || director === selectedDirector) &&
-                    (selectedPM === "all" || propertyManager === selectedPM)
-                ) {
-                    marker.setMap(map);
-                } else {
-                    marker.setMap(null);
-                }
+            allMarkers.forEach(({ marker, director, manager, isFuture }) => {
+                const directorMatch = selectedDirector === "all" || director === selectedDirector;
+                const managerMatch = selectedManager === "all" || manager === selectedManager;
+                const futureMatch = isFuture ? showFuture : true;
+
+                marker.setMap(directorMatch && managerMatch && futureMatch ? map : null);
             });
         }
 
@@ -136,12 +145,15 @@
                 'Darla Ahmeti': 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
                 'Melody King': 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png',
                 'Jessica Gunawardana': 'http://maps.google.com/mapfiles/ms/icons/pink-dot.png',
-                'Unknown': 'http://maps.google.com/mapfiles/ms/icons/grey-dot.png'
+                'Unknown': 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png'
             };
             return colors[director] || colors['Unknown'];
         }
     </script>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAmaxpp71HV-Rh94eSohRMc-PLTpWIw_Zc&loading=async&callback=initMap"></script>
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAmaxpp71HV-Rh94eSohRMc-PLTpWIw_Zc&callback=initMap"
+      async
+    ></script>
 </body>
 </html>
