@@ -5,7 +5,7 @@
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
         #map { width: 100%; height: 100vh; }
-        #filter {
+        #filters {
             position: absolute;
             top: 10px;
             left: 10px;
@@ -18,12 +18,18 @@
     </style>
 </head>
 <body>
-    <div id="filter">
+    <div id="filters">
         <label for="directorFilter">Filter by Director:</label>
         <select id="directorFilter">
             <option value="all">Show All</option>
         </select>
+
+        <label for="pmFilter">Filter by Property Manager:</label>
+        <select id="pmFilter">
+            <option value="all">Show All</option>
+        </select>
     </div>
+    
     <div id="map"></div>
 
     <script>
@@ -41,11 +47,15 @@
                 .then(data => {
                     console.log("Fetched Data:", data);
                     const directorsSet = new Set();
+                    const pmSet = new Set();
 
                     data.forEach(property => {
                         let latLngString = property["Latitude/Longitude"] || "";
                         let directorName = property["DIRECTOR"] || "Unknown";
+                        let propertyManager = property["Property Manager"] || "Unknown";
+
                         directorsSet.add(directorName);
+                        pmSet.add(propertyManager);
 
                         if (latLngString.includes(',')) {
                             const latLng = latLngString.split(',').map(coord => parseFloat(coord.trim()));
@@ -60,7 +70,7 @@
                                 const infoWindow = new google.maps.InfoWindow({
                                     content: `<div>
                                                 <h3>${property["Community"]}</h3>
-                                                <p><strong>Property Manager:</strong> ${property["Property Manager"]}</p>
+                                                <p><strong>Property Manager:</strong> ${propertyManager}</p>
                                                 <p><strong>Phone:</strong> ${property["PM: P#"]}</p>
                                                 <p><strong>Director:</strong> ${directorName}</p>
                                               </div>`
@@ -70,33 +80,47 @@
                                     infoWindow.open(map, marker);
                                 });
 
-                                markers.push({ marker, director: directorName });
+                                markers.push({ marker, director: directorName, propertyManager });
                             }
                         }
                     });
 
-                    populateFilter(directorsSet);
+                    populateFilter(directorsSet, pmSet);
                 })
                 .catch(error => console.error('Error loading properties:', error));
         }
 
-        function populateFilter(directorsSet) {
-            const filter = document.getElementById("directorFilter");
+        function populateFilter(directorsSet, pmSet) {
+            const directorFilter = document.getElementById("directorFilter");
+            const pmFilter = document.getElementById("pmFilter");
+
             directorsSet.forEach(director => {
                 const option = document.createElement("option");
                 option.value = director;
                 option.textContent = director;
-                filter.appendChild(option);
+                directorFilter.appendChild(option);
             });
 
-            filter.addEventListener("change", function() {
-                filterMarkers(this.value);
+            pmSet.forEach(pm => {
+                const option = document.createElement("option");
+                option.value = pm;
+                option.textContent = pm;
+                pmFilter.appendChild(option);
             });
+
+            directorFilter.addEventListener("change", applyFilters);
+            pmFilter.addEventListener("change", applyFilters);
         }
 
-        function filterMarkers(selectedDirector) {
-            markers.forEach(({ marker, director }) => {
-                if (selectedDirector === "all" || director === selectedDirector) {
+        function applyFilters() {
+            const selectedDirector = document.getElementById("directorFilter").value;
+            const selectedPM = document.getElementById("pmFilter").value;
+
+            markers.forEach(({ marker, director, propertyManager }) => {
+                if (
+                    (selectedDirector === "all" || director === selectedDirector) &&
+                    (selectedPM === "all" || propertyManager === selectedPM)
+                ) {
                     marker.setMap(map);
                 } else {
                     marker.setMap(null);
