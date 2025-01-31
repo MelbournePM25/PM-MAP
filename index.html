@@ -15,6 +15,28 @@
             border-radius: 5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
+        #legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -37,6 +59,19 @@
 
     <div id="map"></div>
 
+    <!-- Legend -->
+    <div id="legend">
+        <strong>Legend</strong>
+        <div class="legend-item"><span class="legend-color" style="background-color: red;"></span> Elena Schneider</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: blue;"></span> Sophia Khajehnouri</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: yellow;"></span> Nathan Browne</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: green;"></span> Darla Ahmeti</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: purple;"></span> Melody King</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: pink;"></span> Jessica Gunawardana</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: gray;"></span> Unknown</div>
+        <div class="legend-item"><span class="legend-color" style="background-color: lightblue;"></span> Future Properties</div>
+    </div>
+
     <script>
         let map;
         let allMarkers = [];
@@ -47,58 +82,59 @@
                 center: { lat: 43.72023, lng: -79.47168 }
             });
 
-            // Fetch the data from Google Sheets script
-            const DATA_URL = 'https://script.google.com/macros/s/AKfycbzGpMK2N83HAuXAB8c4qHNpPF5jh_sCFM8iJnUGqbWOUmwmwx7xAbwvs5qzA2KqBppx/exec';
+            // Add the legend to the map UI
+            map.controls[google.maps.ControlPosition.TOP_RIGHT].push(document.getElementById('legend'));
 
-            fetch(DATA_URL)
-            .then(response => response.json())
-            .then(data => {
-                console.log('Fetched Properties:', data);
+            const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzGpMK2N83HAuXAB8c4qHNpPF5jh_sCFM8iJnUGqbWOUmwmwx7xAbwvs5qzA2KqBppx/exec';
 
-                const directorsSet = new Set();
-                const managersSet = new Set();
+            fetch(SHEET_URL)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Fetched Properties:", data);
 
-                data.forEach(item => {
-                    let latLngString = item["Latitude/Longitude"] || "";
-                    let isFuture = item["FUTURE"] && item["FUTURE"].trim().toLowerCase() === "yes";
-                    let directorName = item["DIRECTOR"] ? item["DIRECTOR"].trim() : "Unknown";
-                    let propertyManager = item["Property Manager"] ? item["Property Manager"].trim() : "Unknown";
-                    
-                    directorsSet.add(directorName);
-                    managersSet.add(propertyManager);
+                    const directorsSet = new Set();
+                    const managersSet = new Set();
 
-                    if (latLngString.includes(',')) {
-                        const latLng = latLngString.split(',').map(coord => parseFloat(coord.trim()));
-                        if (!isNaN(latLng[0]) && !isNaN(latLng[1])) {
-                            const marker = new google.maps.Marker({
-                                position: { lat: latLng[0], lng: latLng[1] },
-                                map: map,
-                                title: item["Community"] || "Unknown Property",
-                                icon: isFuture ? 'http://maps.google.com/mapfiles/ms/icons/ltblue-dot.png' : getDirectorColor(directorName)
-                            });
+                    data.forEach(item => {
+                        let latLngString = item["Latitude/Longitude"];
+                        let isFuture = (item["FUTURE"] || "").trim().toLowerCase() === "yes";
+                        let director = item["DIRECTOR"] ? item["DIRECTOR"].trim() : "Unknown";
+                        let propertyManager = item["Property Manager"] ? item["Property Manager"].trim() : "Unknown";
 
-                            const infoWindow = new google.maps.InfoWindow({
-                                content: `<div>
-                                            <h3>${item["Community"] || "Unknown Property"}</h3>
-                                            <p><strong>Property Manager:</strong> ${propertyManager}</p>
-                                            <p><strong>Phone:</strong> ${item["PM: P#"] || "N/A"}</p>
-                                            <p><strong>Director:</strong> ${directorName}</p>
-                                          </div>`
-                            });
+                        directorsSet.add(director);
+                        managersSet.add(propertyManager);
 
-                            marker.addListener('click', () => {
-                                infoWindow.open(map, marker);
-                            });
+                        if (latLngString.includes(',')) {
+                            const latLng = latLngString.split(',').map(coord => parseFloat(coord.trim()));
+                            if (!isNaN(latLng[0]) && !isNaN(latLng[1])) {
+                                const marker = new google.maps.Marker({
+                                    position: { lat: latLng[0], lng: latLng[1] },
+                                    map: map,
+                                    title: item["Community"] || "Unknown Property",
+                                    icon: isFuture ? 'http://maps.google.com/mapfiles/ms/icons/ltblue-dot.png' : getDirectorColor(director)
+                                });
 
-                            allMarkers.push({ marker, director: directorName, manager: propertyManager, isFuture });
+                                const infoWindow = new google.maps.InfoWindow({
+                                    content: `<div>
+                                                <h3>${item["Community"] || "Unknown Property"}</h3>
+                                                <p><strong>Property Manager:</strong> ${propertyManager}</p>
+                                                <p><strong>Phone:</strong> ${item["PM: P#"] || "N/A"}</p>
+                                                <p><strong>Director:</strong> ${director}</p>
+                                              </div>`
+                                });
+
+                                marker.addListener('click', () => {
+                                    infoWindow.open(map, marker);
+                                });
+
+                                allMarkers.push({ marker, director, manager: propertyManager, isFuture });
+                            }
                         }
-                    }
-                });
+                    });
 
-                populateFilters(directorsSet, managersSet);
-                applyFilters(); // Ensure the correct properties are displayed
-            })
-            .catch(error => console.error('Error loading properties:', error));
+                    populateFilters(directorsSet, managersSet);
+                })
+                .catch(error => console.error('Error loading properties:', error));
         }
 
         function populateFilters(directorsSet, managersSet) {
@@ -118,12 +154,12 @@
                 managerFilter.appendChild(option);
             });
 
-            directorFilter.addEventListener("change", applyFilters);
-            managerFilter.addEventListener("change", applyFilters);
-            document.getElementById("futureToggle").addEventListener("change", applyFilters);
+            directorFilter.addEventListener("change", filterMarkers);
+            managerFilter.addEventListener("change", filterMarkers);
+            document.getElementById("futureToggle").addEventListener("change", filterMarkers);
         }
 
-        function applyFilters() {
+        function filterMarkers() {
             const selectedDirector = document.getElementById("directorFilter").value;
             const selectedManager = document.getElementById("managerFilter").value;
             const showFuture = document.getElementById("futureToggle").checked;
@@ -131,7 +167,7 @@
             allMarkers.forEach(({ marker, director, manager, isFuture }) => {
                 const directorMatch = selectedDirector === "all" || director === selectedDirector;
                 const managerMatch = selectedManager === "all" || manager === selectedManager;
-                const futureMatch = isFuture ? showFuture : true;
+                const futureMatch = showFuture || !isFuture;
 
                 marker.setMap(directorMatch && managerMatch && futureMatch ? map : null);
             });
@@ -145,15 +181,11 @@
                 'Darla Ahmeti': 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
                 'Melody King': 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png',
                 'Jessica Gunawardana': 'http://maps.google.com/mapfiles/ms/icons/pink-dot.png',
-                'Unknown': 'http://maps.google.com/mapfiles/ms/icons/orange-dot.png'
+                'Unknown': 'http://maps.google.com/mapfiles/ms/icons/gray-dot.png'
             };
             return colors[director] || colors['Unknown'];
         }
     </script>
-
-    <script
-      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAmaxpp71HV-Rh94eSohRMc-PLTpWIw_Zc&callback=initMap"
-      async
-    ></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAmaxpp71HV-Rh94eSohRMc-PLTpWIw_Zc&callback=initMap" async></script>
 </body>
 </html>
