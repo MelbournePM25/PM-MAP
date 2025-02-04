@@ -146,11 +146,14 @@
                 icon: isFuture ? 'http://maps.google.com/mapfiles/ms/icons/ltblue-dot.png' : getDirectorColor(director)
               });
 
+              // Build the infoWindow content including the new property details
               const infoWindow = new google.maps.InfoWindow({
                 content: `<div>
                             <h3>${community}</h3>
                             <p><strong>Property Manager:</strong> ${propertyManager}</p>
                             <p><strong>Phone:</strong> ${item["PM: P#"] || "N/A"}</p>
+                            <p><strong>Property Type:</strong> ${item["Property Type"] || "N/A"}</p>
+                            <p><strong>Number of Units:</strong> ${item["Number of Units"] || "N/A"}</p>
                             <p><strong>Director:</strong> ${director}</p>
                           </div>`
               });
@@ -159,7 +162,7 @@
                 infoWindow.open(map, marker);
               });
 
-              // Store additional property info for filtering (search by name)
+              // Store additional property info for filtering (search by property name)
               allMarkers.push({ marker, director, manager: propertyManager, isFuture, community });
             }
           }
